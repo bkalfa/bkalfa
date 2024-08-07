@@ -1,7 +1,7 @@
-<html><head><base href="https://websim-notes-app.example.com/%20quand%20j'ouvre%20pour%20cr%C3%A9e%20la%20note%20je%20n'arrive%20pas%20%C3%A0%20voir%20tout%20le%20cadre%20avec%20les%20bouton%20modifier%20enregristrer">
+<html><head><base href="https://websim-notes-app.example.com/%20je%20veux%20voir%20apparaitre%20une%20information%20de%20la%20note%20dans%20la%20case%20de%20la%20date%20du%20calendrier%20de%20l'application">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>BKNotes - Responsive Calendar Notes App with Notifications</title>
+<title>BKNotes - Calendrier avec Aperçu des Notes</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#4A90E2">
 <link rel="apple-touch-icon" href="icon-192x192.png">
@@ -42,13 +42,28 @@
     text-align: center;
     cursor: pointer;
     transition: background-color 0.3s;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 80px;
   }
   .day:hover {
     background-color: #e0e0e0;
   }
   .day.has-event {
-    background-color: #4A90E2;
-    color: white;
+    background-color: #E6F2FF;
+    color: #4A90E2;
+  }
+  .day-number {
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  .event-preview {
+    font-size: 0.8em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #666;
   }
   #eventModal {
     display: none;
@@ -149,6 +164,7 @@
     .day {
       padding: 5px;
       font-size: 0.8em;
+      min-height: 60px;
     }
     .modal-content {
       width: 95%;
@@ -240,11 +256,21 @@
       for (let i = 1; i <= daysInMonth; i++) {
         const day = document.createElement('div');
         day.classList.add('day');
-        day.textContent = i;
         const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        
+        const dayNumber = document.createElement('div');
+        dayNumber.classList.add('day-number');
+        dayNumber.textContent = i;
+        day.appendChild(dayNumber);
+
         if (events[dateString] && events[dateString].length > 0) {
           day.classList.add('has-event');
+          const eventPreview = document.createElement('div');
+          eventPreview.classList.add('event-preview');
+          eventPreview.textContent = events[dateString][0].title;
+          day.appendChild(eventPreview);
         }
+
         day.addEventListener('click', () => openModal(dateString));
         calendar.appendChild(day);
       }
@@ -384,6 +410,33 @@
         scheduleNotification(event, dateKey);
       });
     });
+
+    // Demander la permission pour les notifications au chargement de la page
+    if ('Notification' in window) {
+      Notification.requestPermission();
+    }
+
+    // Fonction pour vérifier et afficher les notifications toutes les minutes
+    function checkNotifications() {
+      const now = new Date();
+      Object.keys(events).forEach(dateKey => {
+        events[dateKey].forEach(event => {
+          if (event.reminder) {
+            const eventDate = new Date(`${dateKey}T${event.time}`);
+            const reminderTime = new Date(eventDate.getTime() - event.reminder * 60000);
+            if (now >= reminderTime && now < eventDate) {
+              showNotification(event.title);
+            }
+          }
+        });
+      });
+    }
+
+    // Vérifier les notifications toutes les minutes
+    setInterval(checkNotifications, 60000);
+
+    // Vérifier les notifications au chargement de la page
+    checkNotifications();
   </script>
 
   <script>
