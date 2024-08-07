@@ -1,0 +1,422 @@
+<html><head><base href="https://websim-notes-app.example.com/ajouter%20un%20bouton%20modifier%20pour%20pouvoir%20modifier%20la%20note%20et%20que%20ce%20soit%20fonctionnel">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NotesApp Calendrier - Modification des notes</title>
+<style>
+  body {
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f5f5f5;
+    color: #333;
+  }
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  h1, h2 {
+    text-align: center;
+    color: #2c3e50;
+  }
+  #calendar {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+  }
+  .calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    background-color: #3498db;
+    color: #fff;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+  }
+  .calendar-body {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background-color: #ddd;
+    padding: 1px;
+  }
+  .calendar-day {
+    background-color: #fff;
+    min-height: 100px;
+    padding: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  .calendar-day:hover {
+    background-color: #f0f0f0;
+  }
+  .calendar-day.other-month {
+    color: #bbb;
+  }
+  .calendar-day.has-note {
+    background-color: #e8f6fe;
+  }
+  .note-preview {
+    font-size: 11px;
+    margin-top: 5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .note-preview:hover {
+    text-decoration: underline;
+  }
+  #note-modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.4);
+  }
+  .modal-content {
+    background-color: #fefefe;
+    margin: 10% auto;
+    padding: 20px;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 600px;
+  }
+  .close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .close:hover,
+  .close:focus {
+    color: #000;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  #note-form input,
+  #note-form textarea,
+  #note-form select {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+  button {
+    background-color: #3498db;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 10px;
+  }
+  button:hover {
+    background-color: #2980b9;
+  }
+  #delete-note {
+    background-color: #e74c3c;
+  }
+  #delete-note:hover {
+    background-color: #c0392b;
+  }
+  #edit-note {
+    background-color: #f39c12;
+  }
+  #edit-note:hover {
+    background-color: #d35400;
+  }
+  #debug-info {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 20px;
+  }
+  #debug-info h3 {
+    margin-top: 0;
+  }
+  #saved-notes {
+    white-space: pre-wrap;
+    font-family: monospace;
+    background-color: #f0f0f0;
+    padding: 10px;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>NotesApp Calendrier - Modification des notes</h1>
+    <div id="calendar">
+      <div class="calendar-header">
+        <button id="prev-month">&lt;</button>
+        <h2 id="current-month"></h2>
+        <button id="next-month">&gt;</button>
+      </div>
+      <div class="calendar-body" id="calendar-body"></div>
+    </div>
+
+    <div id="debug-info">
+      <h3>Informations de débogage</h3>
+      <p>Notes sauvegardées dans le localStorage:</p>
+      <pre id="saved-notes"></pre>
+      <button id="clear-storage">Effacer le stockage</button>
+    </div>
+  </div>
+
+  <div id="note-modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2 id="modal-date"></h2>
+      <form id="note-form">
+        <input type="text" id="note-title" placeholder="Titre de la note" required>
+        <select id="note-start-time" required>
+          <option value="">Sélectionnez l'heure de début</option>
+        </select>
+        <select id="note-end-time" required>
+          <option value="">Sélectionnez l'heure de fin</option>
+        </select>
+        <textarea id="note-content" placeholder="Contenu de la note" required></textarea>
+        <button type="submit" id="save-note">Enregistrer la note</button>
+        <button type="button" id="edit-note" style="display: none;">Modifier</button>
+        <button type="button" id="delete-note" style="display: none;">Supprimer la note</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let currentDate = new Date();
+    const modal = document.getElementById('note-modal');
+    const closeBtn = document.getElementsByClassName('close')[0];
+    const noteForm = document.getElementById('note-form');
+    const deleteNoteBtn = document.getElementById('delete-note');
+    const editNoteBtn = document.getElementById('edit-note');
+    const saveNoteBtn = document.getElementById('save-note');
+    let selectedDate;
+    let selectedNoteIndex;
+    let isEditMode = false;
+
+    function saveNotes(notes) {
+      localStorage.setItem('notes', JSON.stringify(notes));
+      updateDebugInfo();
+    }
+
+    function getNotes() {
+      const notes = localStorage.getItem('notes');
+      return notes ? JSON.parse(notes) : {};
+    }
+
+    function updateDebugInfo() {
+      const savedNotesElement = document.getElementById('saved-notes');
+      const notes = getNotes();
+      savedNotesElement.textContent = JSON.stringify(notes, null, 2);
+    }
+
+    function formatDate(date) {
+      return date.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    function generateCalendar(date) {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const startingDay = firstDay.getDay();
+      const totalDays = lastDay.getDate();
+
+      const calendarBody = document.getElementById('calendar-body');
+      calendarBody.innerHTML = '';
+
+      document.getElementById('current-month').textContent = date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+      const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+      dayNames.forEach(day => {
+        const dayHeader = document.createElement('div');
+        dayHeader.className = 'calendar-day';
+        dayHeader.textContent = day;
+        calendarBody.appendChild(dayHeader);
+      });
+
+      const notes = getNotes();
+
+      for (let i = 0; i < 42; i++) {
+        const day = document.createElement('div');
+        day.className = 'calendar-day';
+
+        const currentDay = i - startingDay + 1;
+        if (i < startingDay || currentDay > totalDays) {
+          day.classList.add('other-month');
+        } else {
+          day.textContent = currentDay;
+          const dateString = `${year}-${(month + 1).toString().padStart(2, '0')}-${currentDay.toString().padStart(2, '0')}`;
+          if (notes[dateString] && notes[dateString].length > 0) {
+            day.classList.add('has-note');
+            notes[dateString].forEach((note, index) => {
+              const notePreview = document.createElement('div');
+              notePreview.className = 'note-preview';
+              notePreview.textContent = `${note.startTime} - ${note.title}`;
+              notePreview.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openNoteModal(dateString, index);
+              });
+              day.appendChild(notePreview);
+            });
+          }
+          day.addEventListener('click', () => openNoteModal(dateString));
+        }
+
+        calendarBody.appendChild(day);
+      }
+    }
+
+    function populateTimeOptions() {
+      const startTimeSelect = document.getElementById('note-start-time');
+      const endTimeSelect = document.getElementById('note-end-time');
+      startTimeSelect.innerHTML = '<option value="">Sélectionnez l\'heure de début</option>';
+      endTimeSelect.innerHTML = '<option value="">Sélectionnez l\'heure de fin</option>';
+
+      for (let hour = 0; hour < 24; hour++) {
+        for (let minute = 0; minute < 60; minute += 30) {
+          const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+          startTimeSelect.innerHTML += `<option value="${time}">${time}</option>`;
+          endTimeSelect.innerHTML += `<option value="${time}">${time}</option>`;
+        }
+      }
+    }
+
+    function openNoteModal(date, noteIndex = null) {
+      selectedDate = date;
+      selectedNoteIndex = noteIndex;
+      modal.style.display = 'block';
+      document.getElementById('modal-date').textContent = formatDate(new Date(date));
+      populateTimeOptions();
+      noteForm.reset();
+
+      if (noteIndex !== null) {
+        const notes = getNotes();
+        const note = notes[date][noteIndex];
+        document.getElementById('note-title').value = note.title;
+        document.getElementById('note-start-time').value = note.startTime;
+        document.getElementById('note-end-time').value = note.endTime;
+        document.getElementById('note-content').value = note.content;
+        editNoteBtn.style.display = 'inline-block';
+        deleteNoteBtn.style.display = 'inline-block';
+        saveNoteBtn.style.display = 'none';
+        disableFormFields(true);
+      } else {
+        editNoteBtn.style.display = 'none';
+        deleteNoteBtn.style.display = 'none';
+        saveNoteBtn.style.display = 'inline-block';
+        disableFormFields(false);
+      }
+      isEditMode = false;
+    }
+
+    function disableFormFields(disabled) {
+      document.getElementById('note-title').disabled = disabled;
+      document.getElementById('note-start-time').disabled = disabled;
+      document.getElementById('note-end-time').disabled = disabled;
+      document.getElementById('note-content').disabled = disabled;
+    }
+
+    noteForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const title = document.getElementById('note-title').value;
+      const startTime = document.getElementById('note-start-time').value;
+      const endTime = document.getElementById('note-end-time').value;
+      const content = document.getElementById('note-content').value;
+
+      if (title && startTime && endTime && content) {
+        const notes = getNotes();
+        if (!notes[selectedDate]) {
+          notes[selectedDate] = [];
+        }
+        const newNote = { title, startTime, endTime, content };
+
+        if (selectedNoteIndex !== null) {
+          notes[selectedDate][selectedNoteIndex] = newNote;
+        } else {
+          notes[selectedDate].push(newNote);
+        }
+
+        saveNotes(notes);
+        generateCalendar(currentDate);
+        modal.style.display = 'none';
+        this.reset();
+      }
+    });
+
+    deleteNoteBtn.addEventListener('click', function() {
+      if (selectedNoteIndex !== null) {
+        const notes = getNotes();
+        notes[selectedDate].splice(selectedNoteIndex, 1);
+        if (notes[selectedDate].length === 0) {
+          delete notes[selectedDate];
+        }
+        saveNotes(notes);
+        generateCalendar(currentDate);
+        modal.style.display = 'none';
+      }
+    });
+
+    editNoteBtn.addEventListener('click', function() {
+      if (!isEditMode) {
+        disableFormFields(false);
+        this.textContent = 'Annuler';
+        saveNoteBtn.style.display = 'inline-block';
+        isEditMode = true;
+      } else {
+        const notes = getNotes();
+        const note = notes[selectedDate][selectedNoteIndex];
+        document.getElementById('note-title').value = note.title;
+        document.getElementById('note-start-time').value = note.startTime;
+        document.getElementById('note-end-time').value = note.endTime;
+        document.getElementById('note-content').value = note.content;
+        disableFormFields(true);
+        this.textContent = 'Modifier';
+        saveNoteBtn.style.display = 'none';
+        isEditMode = false;
+      }
+    });
+
+    closeBtn.onclick = function() {
+      modal.style.display = 'none';
+    }
+
+    window.onclick = function(event) {
+      if (event.target == modal) {
+        modal.style.display = 'none';
+      }
+    }
+
+    document.getElementById('prev-month').addEventListener('click', () => {
+      currentDate.setMonth(currentDate.getMonth() - 1);
+      generateCalendar(currentDate);
+    });
+
+    document.getElementById('next-month').addEventListener('click', () => {
+      currentDate.setMonth(currentDate.getMonth() + 1);
+      generateCalendar(currentDate);
+    });
+
+    document.getElementById('clear-storage').addEventListener('click', () => {
+      localStorage.clear();
+      updateDebugInfo();
+      generateCalendar(currentDate);
+    });
+
+    generateCalendar(currentDate);
+    updateDebugInfo();
+  </script>
+</body>
+</html>
